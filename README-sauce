@@ -1,0 +1,6 @@
+This is a fork of dwm.  It has local modifications to remove the
+functionality that could be used to escape the window manager.  All
+we want is basic window movement / management -- nothing else.
+
+We've also fixed it to center windows by default.  This is better for
+The android emulators.

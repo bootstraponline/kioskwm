@@ -92,7 +92,7 @@ struct Client {
 	int basew, baseh, incw, inch, maxw, maxh, minw, minh;
 	int bw, oldbw;
 	unsigned int tags;
-	int isfixed, isfloating, isurgent, neverfocus, oldstate, isfullscreen;
+	int isfixed, iscentered, isfloating, isurgent, neverfocus, oldstate, isfullscreen;
 	Client *next;
 	Client *snext;
 	Monitor *mon;
@@ -254,37 +254,16 @@ struct NumTags { char limitexceeded[LENGTH(tags) > 31 ? -1 : 1]; };
 void
 applyrules(Client *c)
 {
-	const char *class, *instance;
-	unsigned int i;
-	const Rule *r;
-	Monitor *m;
-	XClassHint ch = { NULL, NULL };
-
-	/* rule matching */
-	c->isfloating = 0;
+	/*
+	 * Originally this was for matching rules via a compiled in configuration.
+	 * We don't have a need for this, but we do use this to hook on first
+	 * Window instantiation.  We set every window to floating and centered.
+	 */
+	c->isfloating = 1;
+	c->iscentered = 1;
 	c->tags = 0;
-	XGetClassHint(dpy, c->win, &ch);
-	class    = ch.res_class ? ch.res_class : broken;
-	instance = ch.res_name  ? ch.res_name  : broken;
 
-	for (i = 0; i < LENGTH(rules); i++) {
-		r = &rules[i];
-		if ((!r->title || strstr(c->name, r->title))
-		&& (!r->class || strstr(class, r->class))
-		&& (!r->instance || strstr(instance, r->instance)))
-		{
-			c->isfloating = r->isfloating;
-			c->tags |= r->tags;
-			for (m = mons; m && m->num != r->monitor; m = m->next);
-			if (m)
-				c->mon = m;
-		}
-	}
-	if (ch.res_class)
-		XFree(ch.res_class);
-	if (ch.res_name)
-		XFree(ch.res_name);
-	c->tags = c->tags & TAGMASK ? c->tags & TAGMASK : c->mon->tagset[c->mon->seltags];
+	c->tags = c->mon->tagset[c->mon->seltags];
 }
 
 int
@@ -593,8 +572,6 @@ createmon(void)
 	m->tagset[0] = m->tagset[1] = 1;
 	m->mfact = mfact;
 	m->nmaster = nmaster;
-	m->showbar = showbar;
-	m->topbar = topbar;
 	m->lt[0] = &layouts[0];
 	m->lt[1] = &layouts[1 % LENGTH(layouts)];
 	strncpy(m->ltsymbol, layouts[0].symbol, sizeof m->ltsymbol);
@@ -848,11 +825,13 @@ manage(Window w, XWindowAttributes *wa)
 	if (c->y + HEIGHT(c) > c->mon->my + c->mon->mh)
 		c->y = c->mon->my + c->mon->mh - HEIGHT(c);
 	c->x = MAX(c->x, c->mon->mx);
-	/* only fix client y-offset, if the client center might cover the bar */
-	c->y = MAX(c->y, ((c->mon->by == c->mon->my) && (c->x + (c->w / 2) >= c->mon->wx)
-	           && (c->x + (c->w / 2) < c->mon->wx + c->mon->ww)) ? bh : c->mon->my);
+	c->y = MAX(c->y, c->mon->my);
 	c->bw = borderpx;
 
+	if (c->iscentered) {
+		c->x = (c->mon->mw - WIDTH(c)) / 2;
+		c->y = (c->mon->mh - HEIGHT(c)) / 2;
+	}
 	wc.border_width = c->bw;
 	XConfigureWindow(dpy, w, CWBorderWidth, &wc);
 	XSetWindowBorder(dpy, w, scheme[SchemeNorm][ColBorder].pixel);
@@ -970,6 +949,7 @@ movemouse(const Arg *arg)
 				if (!c->isfloating && selmon->lt[selmon->sellt]->arrange
 				&& (abs(nx - c->x) > snap || abs(ny - c->y) > snap))
 					togglefloating(NULL);
+				c->iscentered = 0;
 			}
 			if (!selmon->lt[selmon->sellt]->arrange || c->isfloating)
 				resize(c, nx, ny, c->w, c->h, 1);
@@ -1097,6 +1077,7 @@ resizemouse(const Arg *arg)
 				if (!c->isfloating && selmon->lt[selmon->sellt]->arrange
 				&& (abs(nw - c->w) > snap || abs(nh - c->h) > snap))
 					togglefloating(NULL);
+				c->iscentered = 0;
 			}
 			if (!selmon->lt[selmon->sellt]->arrange || c->isfloating)
 				resize(c, c->x, c->y, nw, nh, 1);
@@ -1126,7 +1107,8 @@ restack(Monitor *m)
 		XRaiseWindow(dpy, m->sel->win);
 	if (m->lt[m->sellt]->arrange) {
 		wc.stack_mode = Below;
-		wc.sibling = m->barwin;
+		wc.sibling = root; /* Initially our peer is the root window! */
+		wc.stack_mode = TopIf;
 		for (c = m->stack; c; c = c->snext)
 			if (!c->isfloating && ISVISIBLE(c)) {
 				XConfigureWindow(dpy, c->win, CWSibling|CWStackMode, &wc);
@@ -1307,7 +1289,7 @@ setup(void)
 	XChangeProperty(dpy, wmcheckwin, netatom[NetWMCheck], XA_WINDOW, 32,
 		PropModeReplace, (unsigned char *) &wmcheckwin, 1);
 	XChangeProperty(dpy, wmcheckwin, netatom[NetWMName], utf8string, 8,
-		PropModeReplace, (unsigned char *) "dwm", 4);
+		PropModeReplace, (unsigned char *) "saucewm", strlen("saucewm"));
 	XChangeProperty(dpy, root, netatom[NetWMCheck], XA_WINDOW, 32,
 		PropModeReplace, (unsigned char *) &wmcheckwin, 1);
 	/* EWMH support per view */

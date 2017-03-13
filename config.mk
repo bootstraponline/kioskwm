@@ -1,5 +1,5 @@
-# dwm version
-VERSION = 6.1
+# kioskwm version
+VERSION = 1.0
 
 # Customize below to fit your system
 
@@ -11,6 +11,7 @@ X11INC = /usr/X11R6/include
 X11LIB = /usr/X11R6/lib
 
 # Xinerama, comment if you don't want it
+# Usually kiosks do not need it.
 # XINERAMALIBS  = -lXinerama
 # XINERAMAFLAGS = -DXINERAMA
 
